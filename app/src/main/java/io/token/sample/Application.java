@@ -9,18 +9,14 @@ import com.google.common.io.Resources;
 import io.token.Account;
 import io.token.Member;
 import io.token.TokenIO;
+import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
-import io.token.proto.ProtoJson;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import spark.Spark;
 
@@ -63,7 +59,9 @@ public class Application {
             List<Account> accounts = fetchMember.getAccounts(); // get list of accounts
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) { // for each account...
-                Money balance = fetchMember.getAvailableBalance(accounts.get(i).id()); // ...get its balance
+                Money balance = fetchMember.getAvailableBalance(accounts
+                        .get(i)
+                        .id()); // ...get its balance
                 balanceJsons.add(ProtoJson.toJson(balance));
             }
 
@@ -115,24 +113,5 @@ public class Application {
                 .setDisplayNameFirst("Info Demo")
                 .build());
         return member;
-    }
-
-    /**
-     * Parse form data
-     */
-    private static Map<String, String> parseFormData(String query) {
-        try {
-            Map<String, String> queryPairs = new LinkedHashMap<String, String>();
-            String[] pairs = query.split("&");
-            for (String pair : pairs) {
-                int idx = pair.indexOf("=");
-                queryPairs.put(
-                        URLDecoder.decode(pair.substring(0, idx), "UTF-8"),
-                        URLDecoder.decode(pair.substring(idx + 1), "UTF-8"));
-            }
-            return queryPairs;
-        } catch (UnsupportedEncodingException ex) {
-            throw new IllegalArgumentException("Couldn't parse form data");
-        }
     }
 }
