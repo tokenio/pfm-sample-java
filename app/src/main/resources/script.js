@@ -1,39 +1,29 @@
 'use strict';
 
-// Here, "Token" comes from https://web-app.sandbox.token.io/token.js :
-Token.styleButton({            // Sets up the Link with Token button
-    id: 'tokenAccessBtn',
-    label: 'Link with Token'
-}).bindAccessButton(
-    {
-        alias: {
-            type: 'EMAIL',
-            value: '{alias}'        // address filled in by server
-        },
+function initiateAccess() {
+    console.log("I am here");
+    var XHR = new XMLHttpRequest();
+
+    //set up the access request
+    XHR.open('POST', 'http://localhost:3000/request-balances', true);
+
+    XHR.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+
+    var data = $.param({
         resources: [ // the button asks for permission to:
             { type: Token.RESOURCE_TYPE_ALL_ACCOUNTS }, // get list of accounts
             { type: Token.RESOURCE_TYPE_ALL_BALANCES }, // get balance of each account
         ]
-    },
-    function(data) { // success, have access token
-        console.log('success callback got ' + JSON.stringify(data));
-        if (data.tokenId) {
-            $.getJSON(
-                '/fetch-balances',
-                {tokenId: data.tokenId},
-                function (balancesJSON) {
-                    $('#balances').empty();
-                    if (balancesJSON.balances) {
-                        for (var accountId in balancesJSON.balances) {
-                            const balance = balancesJSON.balances[accountId];
-                            $('#balances').append(`<p>${balance.currency}: ${balance.value}`);
-                        }
-                    }
-                }
-            );
-        }
-    },
-    function(error) { // fail
-        alert('Something\'s wrong! ' + error);
-    }
-);
+     });
+
+     // Define what happens on successful data submission
+     XHR.addEventListener("load", function(event) {
+       window.location.replace(event.target.responseURL);
+       //window.open(event.target.responseURL, 'Token Web App', 'height=600,width=400');
+     });
+
+    // Send the data; HTTP headers are set automatically
+    XHR.send(data);
+}
+
+document.getElementById("tokenAccessBtn").onclick = initiateAccess;
