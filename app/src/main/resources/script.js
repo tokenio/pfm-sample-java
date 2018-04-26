@@ -1,7 +1,9 @@
 'use strict';
 
 function initiateAccess() {
-    console.log("I am here");
+    // prevent multiple clicking
+    unbindClick();
+
     var XHR = new XMLHttpRequest();
 
     //set up the access request
@@ -18,12 +20,22 @@ function initiateAccess() {
 
      // Define what happens on successful data submission
      XHR.addEventListener("load", function(event) {
-       window.location.replace(event.target.responseURL);
-       //window.open(event.target.responseURL, 'Token Web App', 'height=600,width=400');
+       window.location.assign(event.target.responseURL);
      });
 
     // Send the data; HTTP headers are set automatically
     XHR.send(data);
 }
 
-document.getElementById("tokenAccessBtn").onclick = initiateAccess;
+function bindClick() {
+    // Add click listener
+    el.addEventListener('click', initiateAccess);
+}
+
+function unbindClick() {
+    // Remove click listener
+    el.removeEventListener('click', initiateAccess);
+}
+
+var el = document.getElementById("tokenAccessBtn");
+bindClick();
