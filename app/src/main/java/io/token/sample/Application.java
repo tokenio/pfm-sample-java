@@ -4,7 +4,6 @@ import static com.google.common.base.Charsets.UTF_8;
 import static io.token.TokenIO.TokenCluster.SANDBOX;
 import static io.token.TokenRequest.TokenRequestOptions.REDIRECT_URL;
 import static io.token.proto.common.alias.AliasProtos.Alias.Type.DOMAIN;
-import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
 import static io.token.util.Util.generateNonce;
 
@@ -14,11 +13,12 @@ import io.token.Account;
 import io.token.Member;
 import io.token.TokenIO;
 import io.token.TokenRequest;
+import io.token.proto.PagedList;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
-import io.token.proto.common.security.SecurityProtos;
+import io.token.proto.common.token.TokenProtos.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +58,8 @@ public class Application {
         Spark.post("/request-balances", (req, res) -> {
             //Create an AccessTokenBuilder
             AccessTokenBuilder tokenBuilder = AccessTokenBuilder.create(
-                    pfmMember.firstAlias()).forAll();
+                    pfmMember.firstAlias())
+                    .forAll();
             //Create a token request to be stored
             TokenRequest request = TokenRequest.create(tokenBuilder)
                     .setOption(REDIRECT_URL, "http://localhost:3000/fetch-balances");
@@ -83,14 +84,19 @@ public class Application {
             String tokenId = tokenIO.parseTokenRequestCallbackUrl(callbackUri).getTokenId();
 
             // use access token's permissions from now on, set true if customer initiated request
-            pfmMember.useAccessToken(tokenId, true);
+            pfmMember.useAccessToken(tokenId, false);
+            PagedList<Token, String> accessTokens = pfmMember.getAccessTokens(null, 100);
+            Token token = accessTokens.getList().get(0);
+            String accountId = token.getPayload().getAccess().getResources(0).getAccount().getAccountId();
 
-            List<Account> accounts = pfmMember.getAccounts(); // get list of accounts
+            Account account = pfmMember.getAccount(accountId); // get list of accounts
             List<String> balanceJsons = new ArrayList<>();
-            for (int i = 0; i < accounts.size(); i++) { // for each account...
-                Money balance = accounts.get(i).getCurrentBalance(STANDARD); // ...get its balance
+//            for (int i = 0; i < accounts.size(); i++) { // for each account...
+//                Money balance = accounts.get(i).getCurrentBalance(STANDARD); // ...get its balance
+//                balanceJsons.add(ProtoJson.toJson(balance));
+//            }
+                Money balance = account.getCurrentBalance(STANDARD); // ...get its balance
                 balanceJsons.add(ProtoJson.toJson(balance));
-            }
 
             // when done using access, clear token from the client.
             pfmMember.clearAccessToken();
