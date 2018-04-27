@@ -13,16 +13,17 @@ import io.token.Account;
 import io.token.Member;
 import io.token.TokenIO;
 import io.token.TokenRequest;
-import io.token.proto.PagedList;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
+import io.token.proto.common.token.TokenProtos.AccessBody.Resource;
 import io.token.proto.common.token.TokenProtos.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import spark.Spark;
 
@@ -85,18 +86,21 @@ public class Application {
 
             // use access token's permissions from now on, set true if customer initiated request
             pfmMember.useAccessToken(tokenId, false);
-            PagedList<Token, String> accessTokens = pfmMember.getAccessTokens(null, 100);
-            Token token = accessTokens.getList().get(0);
-            String accountId = token.getPayload().getAccess().getResources(0).getAccount().getAccountId();
-
-            Account account = pfmMember.getAccount(accountId); // get list of accounts
+            Token token = pfmMember.getToken(tokenId);
+            // extract the account ids token grants access to from the token
+            List<String> accounts = token.getPayload().getAccess().getResourcesList()
+                    .stream()
+                    .map(Resource::getAccount)
+                    .map(Resource.Account::getAccountId)
+                    .filter(id -> !id.isEmpty())
+                    .collect(Collectors.toList());
             List<String> balanceJsons = new ArrayList<>();
-//            for (int i = 0; i < accounts.size(); i++) { // for each account...
-//                Money balance = accounts.get(i).getCurrentBalance(STANDARD); // ...get its balance
-//                balanceJsons.add(ProtoJson.toJson(balance));
-//            }
-                Money balance = account.getCurrentBalance(STANDARD); // ...get its balance
+            for (int i = 0; i < accounts.size(); i++) {
+                //for each account, get its balance
+                Account account = pfmMember.getAccount(accounts.get(i));
+                Money balance = account.getCurrentBalance(STANDARD);
                 balanceJsons.add(ProtoJson.toJson(balance));
+            }
 
             // when done using access, clear token from the client.
             pfmMember.clearAccessToken();
