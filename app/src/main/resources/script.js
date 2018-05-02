@@ -20,7 +20,7 @@ function initiateAccess() {
 
      // Define what happens on successful data submission
      XHR.addEventListener("load", function(event) {
-       window.location.assign(event.target.responseURL);
+       window.open(event.target.responseURL, "Token Web App", "width=400,height=600");
      });
 
     // Send the data; HTTP headers are set automatically
