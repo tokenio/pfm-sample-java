@@ -78,11 +78,7 @@ public class Application {
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances", (req, res) -> {
-            //String tokenId = req.queryMap("tokenId").value();
-            String callbackUri = req.raw().getRequestURL().toString()
-                    + "?"
-                    + req.raw().getQueryString();
-            String tokenId = tokenIO.parseTokenRequestCallbackUrl(callbackUri).getTokenId();
+            String tokenId = req.queryMap("tokenId").value();
 
             // use access token's permissions from now on, set true if customer initiated request
             pfmMember.useAccessToken(tokenId, false);
