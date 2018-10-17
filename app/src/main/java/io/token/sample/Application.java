@@ -142,6 +142,7 @@ public class Application {
         // An alias is a human-readable way to identify a member, e.g., a domain or email address.
         // If a domain alias is used instead of an email, please contact Token
         // with the domain and member ID for verification.
+        // See https://developer.token.io/sdk/#aliases for more information.
         String email = "asjava-" + generateNonce().toLowerCase() + "+noverify@example.com";
         Alias alias = Alias.newBuilder()
                 .setType(EMAIL)
