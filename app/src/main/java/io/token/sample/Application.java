@@ -4,6 +4,7 @@ import static com.google.common.base.Charsets.UTF_8;
 import static io.token.TokenIO.TokenCluster.SANDBOX;
 import static io.token.TokenRequest.TokenRequestOptions.REDIRECT_URL;
 import static io.token.proto.common.alias.AliasProtos.Alias.Type.DOMAIN;
+import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
 import static io.token.util.Util.generateNonce;
 
@@ -139,12 +140,15 @@ public class Application {
      */
     private static Member initializeMember(TokenIO tokenIO) {
         // An alias is a human-readable way to identify a member, e.g., a domain or email address.
-        String domain = "asjava-" + generateNonce().toLowerCase() + ".com";
+        // If a domain alias is used instead of an email, please contact Token
+        // with the domain and member ID for verification.
+        // See https://developer.token.io/sdk/#aliases for more information.
+        String email = "asjava-" + generateNonce().toLowerCase() + "+noverify@example.com";
         Alias alias = Alias.newBuilder()
-                .setType(DOMAIN)
-                .setValue(domain)
+                .setType(EMAIL)
+                .setValue(email)
                 .build();
-        Member member = tokenIO.createMember(alias);
+        Member member = tokenIO.createBusinessMember(alias);
         // A member's profile has a display name and picture.
         // The Token UI shows this (and the alias) to the user when requesting access.
         member.setProfile(Profile.newBuilder()
