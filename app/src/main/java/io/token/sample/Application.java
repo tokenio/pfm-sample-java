@@ -20,6 +20,8 @@ import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
 import io.token.proto.common.token.TokenProtos.AccessBody.Resource;
 import io.token.proto.common.token.TokenProtos.Token;
+import io.token.proto.common.token.TokenProtos.TokenMember;
+import io.token.proto.common.token.TokenProtos.TokenPayload;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,9 +61,15 @@ public class Application {
         // Endpoint for requesting access to account balances
         Spark.post("/request-balances", (req, res) -> {
             //Create an AccessTokenBuilder
-            AccessTokenBuilder tokenBuilder = AccessTokenBuilder.create(
-                    pfmMember.firstAlias())
-                    .forAll();
+            AccessTokenBuilder tokenBuilder = AccessTokenBuilder.fromPayload(
+                    TokenPayload.newBuilder()
+                            .setTo(TokenMember.newBuilder()
+                                    .setAlias(pfmMember.firstAlias())
+                                    .setId(pfmMember.memberId())
+                                    .build())
+                            .build())
+                    .forAllAccounts()
+                    .forAllBalances();
             //Create a token request to be stored
             TokenRequest request = TokenRequest.create(tokenBuilder)
                     .setOption(REDIRECT_URL, "http://localhost:3000/fetch-balances");
