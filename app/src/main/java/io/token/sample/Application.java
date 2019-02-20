@@ -18,7 +18,9 @@ import io.token.proto.common.token.TokenProtos.Token;
 import io.token.tokenrequest.TokenRequest;
 import io.token.tpp.Account;
 import io.token.tpp.Member;
+import io.token.tpp.Representable;
 import io.token.tpp.TokenClient;
+import io.token.tpp.util.Util;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +62,9 @@ public class Application {
             //Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
                     .setToMemberId(pfmMember.memberId())
+                    .setToAlias(pfmMember.firstAliasBlocking())
                     .setRedirectUrl("http://localhost:3000/fetch-balances")
+                    .setCallbackState(generateNonce())
                     .build();
 
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
@@ -79,19 +83,12 @@ public class Application {
             String tokenId = req.queryMap("tokenId").value();
 
             // use access token's permissions from now on, set true if customer initiated request
-            pfmMember.forAccessToken(tokenId, false);
-            Token token = pfmMember.getTokenBlocking(tokenId);
-            // extract the account ids token grants access to from the token
-            List<String> accounts = token.getPayload().getAccess().getResourcesList()
-                    .stream()
-                    .map(Resource::getAccount)
-                    .map(Resource.Account::getAccountId)
-                    .filter(id -> !id.isEmpty())
-                    .collect(Collectors.toList());
+            Representable representable = pfmMember.forAccessToken(tokenId, false);
+            List<Account> accounts = representable.getAccountsBlocking();
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {
                 //for each account, get its balance
-                Account account = pfmMember.getAccountBlocking(accounts.get(i));
+                Account account = accounts.get(i);
                 Money balance = account.getBalanceBlocking(STANDARD).getCurrent();
                 balanceJsons.add(ProtoJson.toJson(balance));
             }
