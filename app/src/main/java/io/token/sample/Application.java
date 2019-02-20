@@ -1,27 +1,24 @@
 package io.token.sample;
 
 import static com.google.common.base.Charsets.UTF_8;
-import static io.token.TokenIO.TokenCluster.SANDBOX;
-import static io.token.TokenRequest.TokenRequestOptions.REDIRECT_URL;
-import static io.token.proto.common.alias.AliasProtos.Alias.Type.DOMAIN;
+import static io.token.TokenClient.TokenCluster.SANDBOX;
 import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
+import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.ACCOUNTS;
+import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.BALANCES;
 import static io.token.util.Util.generateNonce;
 
 import com.google.common.io.Resources;
-import io.token.AccessTokenBuilder;
-import io.token.Account;
-import io.token.Member;
-import io.token.TokenIO;
-import io.token.TokenRequest;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
 import io.token.proto.common.token.TokenProtos.AccessBody.Resource;
 import io.token.proto.common.token.TokenProtos.Token;
-import io.token.proto.common.token.TokenProtos.TokenMember;
-import io.token.proto.common.token.TokenProtos.TokenPayload;
+import io.token.tokenrequest.TokenRequest;
+import io.token.tpp.Account;
+import io.token.tpp.Member;
+import io.token.tpp.TokenClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,36 +45,28 @@ public class Application {
      */
     public static void main(String[] args) throws IOException {
         // Connect to Token's development sandbox
-        TokenIO tokenIO = initializeSDK();
+        TokenClient tokenClient = initializeSDK();
 
         // Create a Member (Token user account). A "real world" server would
         // use the same member instead of creating a new one for each run;
         // this demo creates a a new member for easier demos/testing.
-        Member pfmMember = initializeMember(tokenIO);
+        Member pfmMember = initializeMember(tokenClient);
 
         // Initializes the server
         Spark.port(3000);
 
         // Endpoint for requesting access to account balances
         Spark.post("/request-balances", (req, res) -> {
-            //Create an AccessTokenBuilder
-            AccessTokenBuilder tokenBuilder = AccessTokenBuilder.fromPayload(
-                    TokenPayload.newBuilder()
-                            .setTo(TokenMember.newBuilder()
-                                    .setAlias(pfmMember.firstAlias())
-                                    .setId(pfmMember.memberId())
-                                    .build())
-                            .build())
-                    .forAllAccounts()
-                    .forAllBalances();
             //Create a token request to be stored
-            TokenRequest request = TokenRequest.create(tokenBuilder)
-                    .setOption(REDIRECT_URL, "http://localhost:3000/fetch-balances");
+            TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
+                    .setToMemberId(pfmMember.memberId())
+                    .setRedirectUrl("http://localhost:3000/fetch-balances")
+                    .build();
 
-            String requestId = pfmMember.storeTokenRequest(request);
+            String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
 
             //generate the Token request URL to redirect to
-            String tokenRequestUrl = tokenIO.generateTokenRequestUrl(requestId);
+            String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
 
             //send a 302 redirect
             res.status(302);
@@ -90,8 +79,8 @@ public class Application {
             String tokenId = req.queryMap("tokenId").value();
 
             // use access token's permissions from now on, set true if customer initiated request
-            pfmMember.useAccessToken(tokenId, false);
-            Token token = pfmMember.getToken(tokenId);
+            pfmMember.forAccessToken(tokenId, false);
+            Token token = pfmMember.getTokenBlocking(tokenId);
             // extract the account ids token grants access to from the token
             List<String> accounts = token.getPayload().getAccess().getResourcesList()
                     .stream()
@@ -102,13 +91,10 @@ public class Application {
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {
                 //for each account, get its balance
-                Account account = pfmMember.getAccount(accounts.get(i));
-                Money balance = account.getCurrentBalance(STANDARD);
+                Account account = pfmMember.getAccountBlocking(accounts.get(i));
+                Money balance = account.getBalanceBlocking(STANDARD).getCurrent();
                 balanceJsons.add(ProtoJson.toJson(balance));
             }
-
-            // when done using access, clear token from the client.
-            pfmMember.clearAccessToken();
 
             // respond to script.js with JSON
             return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons));
@@ -116,7 +102,7 @@ public class Application {
 
         // Serve the web page, stylesheet and JS script:
         String script = Resources.toString(Resources.getResource("script.js"), UTF_8)
-                .replace("{alias}", pfmMember.firstAlias().getValue());
+                .replace("{alias}", pfmMember.firstAliasBlocking().getValue());
         Spark.get("/script.js", (req, res) -> script);
         String style = Resources.toString(Resources.getResource("style.css"), UTF_8);
         Spark.get("/style.css", (req, res) -> {
@@ -133,8 +119,8 @@ public class Application {
      * @return TokenIO SDK instance
      * @throws IOException
      */
-    private static TokenIO initializeSDK() throws IOException {
-        return TokenIO.builder()
+    private static TokenClient initializeSDK() throws IOException {
+        return TokenClient.builder()
                 .connectTo(SANDBOX)
                 .devKey("4qY7lqQw8NOl9gng0ZHgT4xdiDqxqoGVutuZwrUYQsI")
                 .build();
@@ -146,7 +132,7 @@ public class Application {
      * @param tokenIO Token SDK client
      * @return Logged-in member
      */
-    private static Member initializeMember(TokenIO tokenIO) {
+    private static Member initializeMember(TokenClient tokenIO) {
         // An alias is a human-readable way to identify a member, e.g., a domain or email address.
         // If a domain alias is used instead of an email, please contact Token
         // with the domain and member ID for verification.
@@ -156,7 +142,7 @@ public class Application {
                 .setType(EMAIL)
                 .setValue(email)
                 .build();
-        Member member = tokenIO.createBusinessMember(alias);
+        Member member = tokenIO.createMemberBlocking(alias);
         // A member's profile has a display name and picture.
         // The Token UI shows this (and the alias) to the user when requesting access.
         member.setProfile(Profile.newBuilder()
