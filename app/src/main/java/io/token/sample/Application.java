@@ -13,18 +13,17 @@ import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
-import io.token.proto.common.token.TokenProtos.AccessBody.Resource;
-import io.token.proto.common.token.TokenProtos.Token;
 import io.token.tokenrequest.TokenRequest;
 import io.token.tpp.Account;
 import io.token.tpp.Member;
 import io.token.tpp.Representable;
 import io.token.tpp.TokenClient;
-import io.token.tpp.util.Util;
+import io.token.tpp.tokenrequest.TokenRequestCallback;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import spark.Spark;
@@ -39,6 +38,8 @@ import spark.Spark;
  * </pre>
  */
 public class Application {
+    private static final String CSRF_TOKEN = generateNonce();
+
     /**
      * Main function.
      *
@@ -64,7 +65,7 @@ public class Application {
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
                     .setRedirectUrl("http://localhost:3000/fetch-balances")
-                    .setCallbackState(generateNonce())
+                    .setCsrfToken(CSRF_TOKEN)
                     .build();
 
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
@@ -80,10 +81,17 @@ public class Application {
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances", (req, res) -> {
-            String tokenId = req.queryMap("tokenId").value();
+            Map<String, String> queryParams = req.queryParams()
+                    .stream()
+                    .collect(Collectors.toMap(k -> k, k -> req.queryParams(k)));
+
+            // check CSRF token and retrieve state and token ID from callback parameters
+            TokenRequestCallback callback = tokenClient.processTokenRequestCallbackBlocking(
+                    queryParams,
+                    CSRF_TOKEN);
 
             // use access token's permissions from now on, set true if customer initiated request
-            Representable representable = pfmMember.forAccessToken(tokenId, false);
+            Representable representable = pfmMember.forAccessToken(callback.getTokenId(), false);
             List<Account> accounts = representable.getAccountsBlocking();
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {

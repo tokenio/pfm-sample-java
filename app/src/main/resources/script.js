@@ -74,9 +74,9 @@ function createPopupButton() {
 
     // setup onSuccess callback
     tokenController.onSuccess(function(data) { // Success Callback
+        var queryString = Object.keys(data).map(key => key + '=' + window.encodeURIComponent(data[key])).join('&');
         // build success URL
-        var successURL = "/fetch-balances"
-           + "?tokenId=" + window.encodeURIComponent(data.tokenId);
+        var successURL = "/fetch-balances?" + queryString;
         // navigate to success URL
         window.location.assign(successURL);
     });
