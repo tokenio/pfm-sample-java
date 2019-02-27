@@ -38,7 +38,7 @@ import spark.Spark;
  * </pre>
  */
 public class Application {
-    private static final String CSRF_TOKEN = generateNonce();
+    private static final String CSRF_TOKEN_KEY = "csrf_token";
 
     /**
      * Main function.
@@ -60,12 +60,18 @@ public class Application {
 
         // Endpoint for requesting access to account balances
         Spark.post("/request-balances", (req, res) -> {
+            // generate CSRF token
+            String csrfToken = generateNonce();
+
+            // set CSRF token in browser cookie
+            res.cookie(CSRF_TOKEN_KEY, csrfToken);
+
             //Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
                     .setRedirectUrl("http://localhost:3000/fetch-balances")
-                    .setCsrfToken(CSRF_TOKEN)
+                    .setCsrfToken(csrfToken)
                     .build();
 
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
@@ -85,10 +91,13 @@ public class Application {
                     .stream()
                     .collect(Collectors.toMap(k -> k, k -> req.queryParams(k)));
 
+            // retrieve CSRF token from browser cookie
+            String csrfToken = req.cookie(CSRF_TOKEN_KEY);
+
             // check CSRF token and retrieve state and token ID from callback parameters
             TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackParamsBlocking(
                     queryParams,
-                    CSRF_TOKEN);
+                    csrfToken);
 
             // use access token's permissions from now on, set true if customer initiated request
             Representable representable = pfmMember.forAccessToken(callback.getTokenId(), false);
