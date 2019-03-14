@@ -63,13 +63,17 @@ public class Application {
             // generate CSRF token
             String csrfToken = generateNonce();
 
+            // generate a reference ID for the token
+            String refId = generateNonce();
+
             // set CSRF token in browser cookie
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
-            //Create a token request to be stored
+            // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
+                    .setRefId(refId)
                     .setRedirectUrl("http://localhost:3000/fetch-balances")
                     .setCsrfToken(csrfToken)
                     .build();
