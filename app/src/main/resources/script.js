@@ -1,8 +1,11 @@
 "use strict";
-
-var elementId = "tokenAccessBtn";
 var tokenController;
 var button;
+
+// Client side Token object for creating the Token button, handling the popup, etc
+var token = new window.Token({
+    env: 'sandbox',
+});
 
 function clean() {
     if (button) {
@@ -16,102 +19,66 @@ function clean() {
     }
 }
 
-function createRedirectButton() {
-    // clean up instances
-    clean();
-
-    // create TokenPopupController to handle Popup messages
-    tokenController = window.Token.createRedirectController();
-
-    // get button placeholder element
-    var element = document.getElementById(elementId);
-
-    // create the button
-    button = window.Token.createTokenButton(element, {
-        label: "Redirect Token Access",
-    });
-
-    // bind the Token Button to the Redirect Controller when ready
-    tokenController.bindButtonClick(button, function(action) {
-    // Each time the button is clicked, a new tokenRequestUrl is created
-        getTokenRequestUrl(function(tokenRequestUrl) {
-            // Initialize popup using the tokenRequestUrl
-            action(tokenRequestUrl);
-        });
-    });
-    // enable button after binding
-    button.enable();
-}
-
-function createPopupButton() {
-    // clean up instances
-    clean();
-
-    // create TokenPopupController to handle Popup messages
-    tokenController = window.Token.createPopupController();
-
-    // get button placeholder element
-    var element = document.getElementById(elementId);
-
-    // create the button
-    button = window.Token.createTokenButton(element, {
-        label: "Popup Token Access",
-    });
-
-    // setup onLoad callback
-    tokenController.onLoad(function(controller) {
-        // bind the Token Button to the Popup Controller when ready
-        tokenController.bindButtonClick(button, function(action) {
-            // Each time the button is clicked, a new tokenRequestUrl is created
-            getTokenRequestUrl(function(tokenRequestUrl) {
-                // Initialize popup using the tokenRequestUrl
-                action(tokenRequestUrl);
-            });
-        });
-        // enable button after binding
-        button.enable();
-    });
-
-    // setup onSuccess callback
-    tokenController.onSuccess(function(data) { // Success Callback
-        var queryString = Object.keys(data).map(key => key + '=' + window.encodeURIComponent(data[key])).join('&');
-        // build success URL
-        var successURL = "/fetch-balances?" + queryString;
-        // navigate to success URL
-        window.location.assign(successURL);
-    });
-
-    // setup onError callback
-    tokenController.onError(function(error) { // Failure Callback
-        throw error;
-    });
-}
-
+// set up a function using the item data to populate the request to fetch the TokenRequestFunction
 function getTokenRequestUrl(done) {
-    var XHR = new XMLHttpRequest();
+    fetch('http://localhost:3000/request-balances', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+    })
+    .then(function(response) {
+        if (response.ok) {
+            response.text()
+                .then(function(data) {
+                    // execute callback when successful response is received
+                    done(data);
+                    console.log('data: ', data);
+                });
+        }
+    });
+}
 
-    //set up the access request
-    XHR.open("POST", "http://localhost:3000/request-balances", true);
+function createButton(buttonType) {
+    // clean up instances
+    clean();
 
-    XHR.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+    // get button placeholder element
+    var element = document.getElementById('tokenAccessBtn');
 
-    var data = $.param({
-        resources: [ // the button asks for permission to:
-            { type: Token.RESOURCE_TYPE_ALL_ACCOUNTS }, // get list of accounts
-            { type: Token.RESOURCE_TYPE_ALL_BALANCES }, // get balance of each account
-        ]
-     });
+    // create the button
+    button = token.createTokenButton(element, {
+        label: 'Token Access',
+    });
 
-     // Define what happens on successful data submission
-     XHR.addEventListener("load", function(event) {
-         // execute callback once response is received
-         if (event.target.status === 200) {
-             done(event.target.responseURL);
-         }
-     });
+    // create TokenController to handle messages
+    tokenController = token.createController({
+        onSuccess: function(data) { // Success Callback
+            // ideally you should POST 'data' to your endpoint, but for simplicity's sake
+            // we are simply putting it in the URL
+            var successURL = "/fetch-balances"
+                + "?data=" + window.encodeURIComponent(JSON.stringify(data));
+            // navigate to success URL
+            window.location.assign(successURL);
+        },
+        onError: function(error) { // Failure Callback
+            throw error;
+        },
+    });
 
-    // Send the data; HTTP headers are set automatically
-    XHR.send(data);
+    // bind the Token Button to the Token Controller when ready
+    tokenController.bindButtonClick(
+        button, // TokenButtonController
+        getTokenRequestUrl, // token request function
+        function(error) { // bindComplete callback
+            // enable button after binding
+            if (error) throw error;
+            button.enable();
+        },
+        { // options
+            desktop: buttonType,
+        }
+    );
 }
 
 function setupButtonTypeSelector() {
@@ -124,15 +91,11 @@ function setupButtonTypeSelector() {
         selector[i].addEventListener('click', function(e) {
             var value = e.target.value;
             if (value === selected) return;
-            if (value === 'popup') {
-                createPopupButton();
-            } else if (value === 'redirect') {
-                createRedirectButton();
-            }
             selected = value;
+            createButton(value);
         });
     }
-    createPopupButton();
+    createButton();
 }
 
 setupButtonTypeSelector();
