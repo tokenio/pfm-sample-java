@@ -72,12 +72,15 @@ public class Application {
             // set CSRF token in browser cookie
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
+            // generate redirect URL
+            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances-redirect";
+
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
                     .setRefId(refId)
-                    .setRedirectUrl("http://localhost:3000/fetch-balances-redirect")
+                    .setRedirectUrl(redirectUrl)
                     .setCsrfToken(csrfToken)
                     .build();
 
