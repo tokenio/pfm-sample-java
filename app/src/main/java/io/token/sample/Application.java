@@ -1,6 +1,7 @@
 package io.token.sample;
 
 import static com.google.common.base.Charsets.UTF_8;
+import static io.grpc.Status.Code.NOT_FOUND;
 import static io.token.TokenClient.TokenCluster.SANDBOX;
 import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
@@ -9,10 +10,13 @@ import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.Access
 import static io.token.util.Util.generateNonce;
 
 import com.google.common.io.Resources;
+import io.grpc.StatusRuntimeException;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
+import io.token.proto.common.member.MemberProtos;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
+import io.token.security.UnsecuredFileSystemKeyStore;
 import io.token.tokenrequest.TokenRequest;
 import io.token.tpp.Account;
 import io.token.tpp.Member;
@@ -20,8 +24,13 @@ import io.token.tpp.Representable;
 import io.token.tpp.TokenClient;
 import io.token.tpp.tokenrequest.TokenRequestCallback;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -131,19 +140,24 @@ public class Application {
         Spark.get("/", (req, res) -> page);
     }
 
-    /**
-     * Initializes the SDK, pointing it to the specified environment.
+     /**
+     * Initializes the SDK, pointing it to the specified environment and the
+     * directory where keys are being stored.
      *
-     * @return TokenIO SDK instance
+     * @return TokenClient SDK instance
      * @throws IOException
      */
     private static TokenClient initializeSDK() throws IOException {
+        Path keys = Files.createDirectories(Paths.get("./keys"));
         return TokenClient.builder()
                 .connectTo(SANDBOX)
+                // This KeyStore reads private keys from files.
+                // Here, it's set up to read the ./keys dir.
+                .withKeyStore(new UnsecuredFileSystemKeyStore(
+                        keys.toFile()))
                 .devKey("4qY7lqQw8NOl9gng0ZHgT4xdiDqxqoGVutuZwrUYQsI")
                 .build();
     }
-
     /**
      * Log in existing member or create new member.
      *
@@ -151,7 +165,59 @@ public class Application {
      * @return Logged-in member
      */
     private static Member initializeMember(TokenClient tokenClient) {
-        // An alias is a human-readable way to identify a member, e.g., a domain or email address.
+        // The UnsecuredFileSystemKeyStore stores keys in a directory
+        // named on the member's memberId, but with ":" replaced by "_".
+        // Look for such a directory.
+        //   If found, try to log in with that memberId
+        //   If not found, create a new member.
+        File keysDir = new File("./keys");
+        String[] paths = keysDir.list();
+
+        return Arrays.stream(paths)
+                .filter(p -> p.contains("_")) // find dir names containing "_"
+                .map(p -> p.replace("_", ":")) // member ID
+                .findFirst()
+                .map(memberId -> loadMember(tokenClient, memberId))
+                .orElseGet(() -> createMember(tokenClient));
+    }
+
+    /**
+     * Using a TokenClient SDK client and the member ID of a previously-created
+     * Member (whose private keys we have stored locally).
+     *
+     * @param tokenClient SDK
+     * @param memberId ID of member
+     * @return Logged-in member.
+     */
+    private static Member loadMember(TokenClient tokenClient, String memberId) {
+        try {
+            return tokenClient.getMemberBlocking(memberId);
+        } catch (StatusRuntimeException sre) {
+            if (sre.getStatus().getCode() == NOT_FOUND) {
+                // We think we have a member's ID and keys, but we can't log in.
+                // In the sandbox testing environment, this can happen:
+                // Sometimes, the member service erases the test members.
+                throw new RuntimeException(
+                        "Couldn't log in saved member, not found. Remove keys dir and try again.");
+            } else {
+                throw new RuntimeException(sre);
+            }
+        }
+    }
+
+    /**
+     * Using a TokenClient SDK client, create a new Member.
+     * This has the side effect of storing the new Member's private
+     * keys in the ./keys directory.
+     *
+     * @param tokenClient Token SDK client
+     * @return newly-created member
+     */
+    private static Member createMember(TokenClient tokenClient) {
+        // Generate a random username, or alias, which is a human-readable way
+        // to identify a member, e.g., a domain or email address.
+        // If we try to create a member with an already-used name,
+        // it will fail.
         // If a domain alias is used instead of an email, please contact Token
         // with the domain and member ID for verification.
         // See https://developer.token.io/sdk/#aliases for more information.
@@ -166,6 +232,14 @@ public class Application {
         member.setProfile(Profile.newBuilder()
                 .setDisplayNameFirst("Info Demo")
                 .build());
+        try {
+            byte[] pict = Files.readAllBytes(Paths.get("favicon.jpg"));
+            member.setProfilePictureBlocking("image/jpeg", pict);
+        } catch(IOException e){
+            throw new RuntimeException(e);
+        }
         return member;
+        // The newly-created member is automatically logged in.
     }
+
 }
