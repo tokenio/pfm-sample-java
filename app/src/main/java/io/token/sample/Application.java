@@ -140,7 +140,7 @@ public class Application {
         Spark.get("/", (req, res) -> page);
     }
 
-     /**
+    /**
      * Initializes the SDK, pointing it to the specified environment and the
      * directory where keys are being stored.
      *
@@ -158,6 +158,7 @@ public class Application {
                 .devKey("4qY7lqQw8NOl9gng0ZHgT4xdiDqxqoGVutuZwrUYQsI")
                 .build();
     }
+
     /**
      * Log in existing member or create new member.
      *
@@ -230,12 +231,13 @@ public class Application {
         // A member's profile has a display name and picture.
         // The Token UI shows this (and the alias) to the user when requesting access.
         member.setProfile(Profile.newBuilder()
-                .setDisplayNameFirst("Info Demo")
+                .setDisplayNameFirst("Info")
+                .setDisplayNameLast("Demo")
                 .build());
         try {
-            byte[] pict = Files.readAllBytes(Paths.get("favicon.jpg"));
+            byte[] pict = Resources.toByteArray(Resources.getResource("favicon.jpg"));
             member.setProfilePictureBlocking("image/jpeg", pict);
-        } catch(IOException e){
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return member;
