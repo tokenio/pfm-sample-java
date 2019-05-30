@@ -8,6 +8,10 @@ import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.Access
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.BALANCES;
 import static io.token.util.Util.generateNonce;
 
+import com.google.gson.Gson;
+import java.lang.reflect.Type;
+import com.google.gson.reflect.TypeToken;
+
 import com.google.common.io.Resources;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
@@ -24,7 +28,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import spark.Spark;
 
@@ -59,7 +62,7 @@ public class Application {
         Spark.port(3000);
 
         // Endpoint for requesting access to account balances
-        Spark.post("/request-balances", (req, res) -> {
+        Spark.get("/request-balances", (req, res) -> {
             // generate CSRF token
             String csrfToken = generateNonce();
 
@@ -69,38 +72,102 @@ public class Application {
             // set CSRF token in browser cookie
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
+            // generate redirect URL
+            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances";
+
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
                     .setRefId(refId)
-                    .setRedirectUrl("http://localhost:3000/fetch-balances")
+                    .setRedirectUrl(redirectUrl)
                     .setCsrfToken(csrfToken)
                     .build();
 
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
 
-            //generate the Token request URL to redirect to
+            // generate the Token request URL
             String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
 
-            //send a 302 redirect
-            res.status(302);
-            res.redirect(tokenRequestUrl);
-            return null;
+             //send a 302 redirect
+             res.status(302);
+             res.redirect(tokenRequestUrl);
+             return null;
+        });
+
+        // Endpoint for requesting access to account balances
+        Spark.post("/request-balances-popup", (req, res) -> {
+            // generate CSRF token
+            String csrfToken = generateNonce();
+
+            // generate a reference ID for the token
+            String refId = generateNonce();
+
+            // set CSRF token in browser cookie
+            res.cookie(CSRF_TOKEN_KEY, csrfToken);
+
+            // generate redirect URL
+            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances-popup";
+
+            // Create a token request to be stored
+            TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
+                    .setToMemberId(pfmMember.memberId())
+                    .setToAlias(pfmMember.firstAliasBlocking())
+                    .setRefId(refId)
+                    .setRedirectUrl(redirectUrl)
+                    .setCsrfToken(csrfToken)
+                    .build();
+
+            String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
+
+            // generate the Token request URL
+            String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
+
+            // return the generated Token Request URL
+            res.status(200);
+            return tokenRequestUrl;
         });
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances", (req, res) -> {
-            Map<String, String> queryParams = req.queryParams()
-                    .stream()
-                    .collect(Collectors.toMap(k -> k, k -> req.queryParams(k)));
+            String callbackUrl = req.url() + "?" + req.queryString();
+
+            // retrieve CSRF token from browser cookie
+            String csrfToken = req.cookie(CSRF_TOKEN_KEY);
+
+            // check CSRF token and retrieve state and token ID from callback parameters
+            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackUrlBlocking(
+                    callbackUrl,
+                    csrfToken);
+
+            // use access token's permissions from now on, set true if customer initiated request
+            Representable representable = pfmMember.forAccessToken(callback.getTokenId(), false);
+            List<Account> accounts = representable.getAccountsBlocking();
+            List<String> balanceJsons = new ArrayList<>();
+            for (int i = 0; i < accounts.size(); i++) {
+                //for each account, get its balance
+                Account account = accounts.get(i);
+                Money balance = account.getBalanceBlocking(STANDARD).getCurrent();
+                balanceJsons.add(ProtoJson.toJson(balance));
+            }
+
+            // respond to script.js with JSON
+            return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons));
+        });
+
+        // Endpoint for transfer payment, called by client side after user approves payment.
+        Spark.get("/fetch-balances-popup", (req, res) -> {
+            // parse JSON from data query param
+            Gson gson = new Gson();
+            Type type = new TypeToken<Map<String, String>>(){}.getType();
+            Map<String, String> data = gson.fromJson(req.queryParams("data"), type);
 
             // retrieve CSRF token from browser cookie
             String csrfToken = req.cookie(CSRF_TOKEN_KEY);
 
             // check CSRF token and retrieve state and token ID from callback parameters
             TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackParamsBlocking(
-                    queryParams,
+                    data,
                     csrfToken);
 
             // use access token's permissions from now on, set true if customer initiated request
