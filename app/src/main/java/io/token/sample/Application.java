@@ -62,7 +62,7 @@ public class Application {
         Spark.port(3000);
 
         // Endpoint for requesting access to account balances
-        Spark.post("/request-balances", (req, res) -> {
+        Spark.get("/request-balances", (req, res) -> {
             // generate CSRF token
             String csrfToken = generateNonce();
 
@@ -73,7 +73,41 @@ public class Application {
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
             // generate redirect URL
-            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances-redirect";
+            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances";
+
+            // Create a token request to be stored
+            TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
+                    .setToMemberId(pfmMember.memberId())
+                    .setToAlias(pfmMember.firstAliasBlocking())
+                    .setRefId(refId)
+                    .setRedirectUrl(redirectUrl)
+                    .setCsrfToken(csrfToken)
+                    .build();
+
+            String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
+
+            // generate the Token request URL
+            String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
+
+             //send a 302 redirect
+             res.status(302);
+             res.redirect(tokenRequestUrl);
+             return null;
+        });
+
+        // Endpoint for requesting access to account balances
+        Spark.post("/request-balances-popup", (req, res) -> {
+            // generate CSRF token
+            String csrfToken = generateNonce();
+
+            // generate a reference ID for the token
+            String refId = generateNonce();
+
+            // set CSRF token in browser cookie
+            res.cookie(CSRF_TOKEN_KEY, csrfToken);
+
+            // generate redirect URL
+            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances-popup";
 
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
@@ -96,17 +130,14 @@ public class Application {
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances", (req, res) -> {
-            // parse JSON from data query param
-            Gson gson = new Gson();
-            Type type = new TypeToken<Map<String, String>>(){}.getType();
-            Map<String, String> data = gson.fromJson(req.queryParams("data"), type);
+            String callbackUrl = req.url() + "?" + req.queryString();
 
             // retrieve CSRF token from browser cookie
             String csrfToken = req.cookie(CSRF_TOKEN_KEY);
 
             // check CSRF token and retrieve state and token ID from callback parameters
-            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackParamsBlocking(
-                    data,
+            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackUrlBlocking(
+                    callbackUrl,
                     csrfToken);
 
             // use access token's permissions from now on, set true if customer initiated request
@@ -125,15 +156,18 @@ public class Application {
         });
 
         // Endpoint for transfer payment, called by client side after user approves payment.
-        Spark.get("/fetch-balances-redirect", (req, res) -> {
-            String callbackUrl = req.url() + "?" + req.queryString();
+        Spark.get("/fetch-balances-popup", (req, res) -> {
+            // parse JSON from data query param
+            Gson gson = new Gson();
+            Type type = new TypeToken<Map<String, String>>(){}.getType();
+            Map<String, String> data = gson.fromJson(req.queryParams("data"), type);
 
             // retrieve CSRF token from browser cookie
             String csrfToken = req.cookie(CSRF_TOKEN_KEY);
 
             // check CSRF token and retrieve state and token ID from callback parameters
-            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackUrlBlocking(
-                    callbackUrl,
+            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackParamsBlocking(
+                    data,
                     csrfToken);
 
             // use access token's permissions from now on, set true if customer initiated request
