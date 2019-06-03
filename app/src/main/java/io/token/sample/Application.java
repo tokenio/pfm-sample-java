@@ -231,8 +231,8 @@ public class Application {
         // A member's profile has a display name and picture.
         // The Token UI shows this (and the alias) to the user when requesting access.
         member.setProfile(Profile.newBuilder()
-                .setDisplayNameFirst("Info")
-                .setDisplayNameLast("Demo")
+                .setDisplayNameFirst("Demo")
+                .setDisplayNameLast("PFM")
                 .build());
         try {
             byte[] pict = Resources.toByteArray(Resources.getResource("southside.png"));
