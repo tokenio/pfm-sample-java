@@ -17,7 +17,6 @@ import com.google.common.io.Resources;
 import io.grpc.StatusRuntimeException;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
-import io.token.proto.common.member.MemberProtos;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
 import io.token.security.UnsecuredFileSystemKeyStore;
@@ -222,7 +221,6 @@ public class Application {
                 // Here, it's set up to read the ./keys dir.
                 .withKeyStore(new UnsecuredFileSystemKeyStore(
                         keys.toFile()))
-                .devKey("4qY7lqQw8NOl9gng0ZHgT4xdiDqxqoGVutuZwrUYQsI")
                 .build();
     }
 
