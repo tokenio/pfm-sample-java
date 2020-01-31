@@ -9,10 +9,6 @@ import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.Access
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.BALANCES;
 import static io.token.util.Util.generateNonce;
 
-import com.google.gson.Gson;
-import java.lang.reflect.Type;
-import com.google.gson.reflect.TypeToken;
-
 import com.google.common.io.Resources;
 import io.grpc.StatusRuntimeException;
 import io.token.proto.ProtoJson;
@@ -25,7 +21,6 @@ import io.token.tpp.Account;
 import io.token.tpp.Member;
 import io.token.tpp.Representable;
 import io.token.tpp.TokenClient;
-import io.token.tpp.tokenrequest.TokenRequestCallback;
 
 import java.io.File;
 import java.io.IOException;
@@ -95,7 +90,7 @@ public class Application {
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
 
             // generate the Token request URL
-            String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
+            String tokenRequestUrl = pfmMember.getBankAuthUrlBlocking("wood", requestId);
 
              //send a 302 redirect
              res.status(302);
@@ -129,7 +124,7 @@ public class Application {
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
 
             // generate the Token request URL
-            String tokenRequestUrl = tokenClient.generateTokenRequestUrlBlocking(requestId);
+            String tokenRequestUrl = pfmMember.getBankAuthUrlBlocking("wood", requestId);
 
             // return the generated Token Request URL
             res.status(200);
@@ -138,18 +133,12 @@ public class Application {
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances", (req, res) -> {
-            String callbackUrl = req.url() + "?" + req.queryString();
-
-            // retrieve CSRF token from browser cookie
-            String csrfToken = req.cookie(CSRF_TOKEN_KEY);
-
-            // check CSRF token and retrieve state and token ID from callback parameters
-            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackUrlBlocking(
-                    callbackUrl,
-                    csrfToken);
+            String tokenRequestId = pfmMember
+                    .onBankAuthCallbackBlocking("wood", req.queryString());
+            String tokenId = tokenClient.getTokenRequestResultBlocking(tokenRequestId).getTokenId();
 
             // use access token's permissions from now on, set true if customer initiated request
-            Representable representable = pfmMember.forAccessToken(callback.getTokenId(), false);
+            Representable representable = pfmMember.forAccessToken(tokenId, false);
             List<Account> accounts = representable.getAccountsBlocking();
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {
@@ -165,21 +154,12 @@ public class Application {
 
         // Endpoint for transfer payment, called by client side after user approves payment.
         Spark.get("/fetch-balances-popup", (req, res) -> {
-            // parse JSON from data query param
-            Gson gson = new Gson();
-            Type type = new TypeToken<Map<String, String>>(){}.getType();
-            Map<String, String> data = gson.fromJson(req.queryParams("data"), type);
-
-            // retrieve CSRF token from browser cookie
-            String csrfToken = req.cookie(CSRF_TOKEN_KEY);
-
-            // check CSRF token and retrieve state and token ID from callback parameters
-            TokenRequestCallback callback = tokenClient.parseTokenRequestCallbackParamsBlocking(
-                    data,
-                    csrfToken);
+            String tokenRequestId = pfmMember
+                    .onBankAuthCallbackBlocking("wood", req.queryString());
+            String tokenId = tokenClient.getTokenRequestResultBlocking(tokenRequestId).getTokenId();
 
             // use access token's permissions from now on, set true if customer initiated request
-            Representable representable = pfmMember.forAccessToken(callback.getTokenId(), false);
+            Representable representable = pfmMember.forAccessToken(tokenId, false);
             List<Account> accounts = representable.getAccountsBlocking();
             List<String> balanceJsons = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {
@@ -217,11 +197,10 @@ public class Application {
         Path keys = Files.createDirectories(Paths.get("./keys"));
         return TokenClient.builder()
                 .connectTo(SANDBOX)
-                // This KeyStore reads private keys from files.
-                // Here, it's set up to read the ./keys dir.
                 .withKeyStore(new UnsecuredFileSystemKeyStore(
                         keys.toFile()))
                 .build();
+
     }
 
     /**
