@@ -9,6 +9,7 @@ import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.Access
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.BALANCES;
 import static io.token.util.Util.generateNonce;
 
+import com.google.common.io.BaseEncoding;
 import com.google.common.io.Resources;
 import io.grpc.StatusRuntimeException;
 import io.token.proto.ProtoJson;
@@ -30,7 +31,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import spark.Spark;
 
@@ -149,7 +149,11 @@ public class Application {
             }
 
             // respond to script.js with JSON
-            return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons));
+            return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons))
+                    + " \n\n\n\n\n\n\n\n\n\n "
+                    + "Consent: \n"
+                    + new String(BaseEncoding.base64()
+                    .decode(pfmMember.getRawConsentBlocking(tokenId)), UTF_8);
         });
 
         // Endpoint for transfer payment, called by client side after user approves payment.
