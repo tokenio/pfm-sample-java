@@ -19,6 +19,7 @@ import io.token.proto.common.money.MoneyProtos.Money;
 import io.token.security.UnsecuredFileSystemKeyStore;
 import io.token.tokenrequest.TokenRequest;
 import io.token.tpp.Account;
+import io.token.tpp.ExternalMetadata;
 import io.token.tpp.Member;
 import io.token.tpp.Representable;
 import io.token.tpp.TokenClient;
@@ -85,6 +86,7 @@ public class Application {
                     .setRefId(refId)
                     .setRedirectUrl(redirectUrl)
                     .setCsrfToken(csrfToken)
+                    .setBankId("wood")
                     .build();
 
             String requestId = pfmMember.storeTokenRequestBlocking(tokenRequest);
@@ -92,10 +94,10 @@ public class Application {
             // generate the Token request URL
             String tokenRequestUrl = pfmMember.getBankAuthUrlBlocking("wood", requestId);
 
-             //send a 302 redirect
-             res.status(302);
-             res.redirect(tokenRequestUrl);
-             return null;
+            //send a 302 redirect
+            res.status(302);
+            res.redirect(tokenRequestUrl);
+            return null;
         });
 
         // Endpoint for requesting access to account balances
@@ -147,13 +149,16 @@ public class Application {
                 Money balance = account.getBalanceBlocking(STANDARD).getCurrent();
                 balanceJsons.add(ProtoJson.toJson(balance));
             }
-
+            ExternalMetadata metadata = pfmMember.getExternalMetadataBlocking(tokenRequestId);
             // respond to script.js with JSON
-            return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons))
-                    + " \n\n\n\n\n\n\n\n\n\n "
-                    + "Consent: \n"
-                    + new String(BaseEncoding.base64()
-                    .decode(pfmMember.getRawConsentBlocking(tokenId)), UTF_8);
+            return String.format("{\"balances\":[%s]}<br/><br/>", String.join(",", balanceJsons))
+                    + String.format(
+                    "standard: %s<br/>consent-id: %s<br/>consent: %s<bar/>",
+                    metadata.getOpenBankingStandard(),
+                    metadata.getConsentId().orElse("UNKNOWN"),
+                    metadata.getConsent()
+                            .map(c -> new String(BaseEncoding.base64().decode(c)))
+                            .orElse("UNKNOWN"));
         });
 
         // Endpoint for transfer payment, called by client side after user approves payment.
