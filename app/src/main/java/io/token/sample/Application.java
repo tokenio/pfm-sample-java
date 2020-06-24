@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import spark.Spark;
 
@@ -49,6 +51,8 @@ import spark.Spark;
  * </pre>
  */
 public class Application {
+    private static final int PORT = 3000;
+    private static final String BASE_URL = "http://localhost:" + PORT;
     private static final String CSRF_TOKEN_KEY = "csrf_token";
 
     /**
@@ -67,7 +71,7 @@ public class Application {
         Member pfmMember = initializeMember(tokenClient);
 
         // Initializes the server
-        Spark.port(3000);
+        Spark.port(PORT);
 
         // Endpoint for requesting access to account balances
         Spark.get("/request-balances", (req, res) -> {
@@ -81,7 +85,7 @@ public class Application {
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
             // generate redirect URL
-            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances";
+            String redirectUrl = BASE_URL + "/fetch-balances";
 
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
@@ -115,7 +119,7 @@ public class Application {
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
             // generate redirect URL
-            String redirectUrl = req.scheme() + "://" + req.host() + "/fetch-balances-popup";
+            String redirectUrl = BASE_URL + "/fetch-balances-popup";
 
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
@@ -305,8 +309,14 @@ public class Application {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        List<String> redirectUrls = Stream.of(
+                "/fetch-balances",
+                "/fetch-balances-popup")
+                .map(endpoint -> BASE_URL + endpoint)
+                .collect(Collectors.toList());
+        member.addRedirectUrlsBlocking(redirectUrls);
         return member;
         // The newly-created member is automatically logged in.
     }
-
 }
