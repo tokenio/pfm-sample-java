@@ -51,8 +51,8 @@ import spark.Spark;
  * </pre>
  */
 public class Application {
-    private static final String LOCALHOST = "http://localhost:";
     private static final int PORT = 3000;
+    private static final String BASE_URL = "http://localhost:" + PORT;
     private static final String CSRF_TOKEN_KEY = "csrf_token";
 
     /**
@@ -85,7 +85,7 @@ public class Application {
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
             // generate redirect URL
-            String redirectUrl = LOCALHOST + PORT + "/fetch-balances";
+            String redirectUrl = BASE_URL + "/fetch-balances";
 
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
@@ -119,7 +119,7 @@ public class Application {
             res.cookie(CSRF_TOKEN_KEY, csrfToken);
 
             // generate redirect URL
-            String redirectUrl = LOCALHOST + PORT + "/fetch-balances-popup";
+            String redirectUrl = BASE_URL + "/fetch-balances-popup";
 
             // Create a token request to be stored
             TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
@@ -313,7 +313,7 @@ public class Application {
         List<String> redirectUrls = Stream.of(
                 "/fetch-balances",
                 "/fetch-balances-popup")
-                .map(endpoint -> LOCALHOST + PORT + endpoint)
+                .map(endpoint -> BASE_URL + endpoint)
                 .collect(Collectors.toList());
         member.addRedirectUrlsBlocking(redirectUrls);
         return member;
