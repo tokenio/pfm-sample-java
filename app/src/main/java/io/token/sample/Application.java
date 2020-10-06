@@ -2,23 +2,24 @@ package io.token.sample;
 
 import static com.google.common.base.Charsets.UTF_8;
 import static io.grpc.Status.Code.NOT_FOUND;
-import static io.token.TokenClient.TokenCluster.SANDBOX;
-import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
+import static io.token.TokenClient.TokenCluster.PRODUCTION;
+import static io.token.proto.common.alias.AliasProtos.Alias.Type.DOMAIN;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.ACCOUNTS;
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.BALANCES;
+import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.TRANSACTIONS;
 import static io.token.util.Util.generateNonce;
 
-import com.google.gson.Gson;
-import java.lang.reflect.Type;
-import com.google.gson.reflect.TypeToken;
-
 import com.google.common.io.Resources;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import io.grpc.StatusRuntimeException;
+import io.token.proto.PagedList;
 import io.token.proto.ProtoJson;
 import io.token.proto.common.alias.AliasProtos.Alias;
 import io.token.proto.common.member.MemberProtos.Profile;
 import io.token.proto.common.money.MoneyProtos.Money;
+import io.token.proto.common.transaction.TransactionProtos.Transaction;
 import io.token.security.UnsecuredFileSystemKeyStore;
 import io.token.tokenrequest.TokenRequest;
 import io.token.tpp.Account;
@@ -29,6 +30,7 @@ import io.token.tpp.tokenrequest.TokenRequestCallback;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,7 +54,7 @@ import spark.Spark;
  */
 public class Application {
     private static final int PORT = 3000;
-    private static final String BASE_URL = "http://localhost:" + PORT;
+    private static final String BASE_URL = "http://test-transaction:" + PORT;
     private static final String CSRF_TOKEN_KEY = "csrf_token";
 
     /**
@@ -88,7 +90,7 @@ public class Application {
             String redirectUrl = BASE_URL + "/fetch-balances";
 
             // Create a token request to be stored
-            TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES)
+            TokenRequest tokenRequest = TokenRequest.accessTokenRequestBuilder(ACCOUNTS, BALANCES, TRANSACTIONS)
                     .setToMemberId(pfmMember.memberId())
                     .setToAlias(pfmMember.firstAliasBlocking())
                     .setRefId(refId)
@@ -163,8 +165,32 @@ public class Application {
                 balanceJsons.add(ProtoJson.toJson(balance));
             }
 
+            List<String> transactionsJsons = new ArrayList<>();
+
+            PagedList<Transaction, String> transactions =
+                    representable.getTransactionsBlocking(
+                            accounts.get(0).id(),
+                            null,
+                            10,
+                            STANDARD);
+
+            Transaction transaction = transactions.getList().get(0);
+            transactionsJsons.add(ProtoJson.toJson(transaction));
+
+            Transaction singleTransaction = representable.getTransactionBlocking(
+                    accounts.get(0).id(),
+                    transactions.getList().get(0).getId(),
+                    STANDARD
+            );
+            System.out.println(transaction);
+            System.out.println(singleTransaction);
             // respond to script.js with JSON
-            return String.format("{\"balances\":[%s]}", String.join(",", balanceJsons));
+            return String.format("{\"balances\":[%s] " + System.lineSeparator()
+                    + "\"Transactions\":[%s] " + System.lineSeparator()
+                    + "\"single transaction\":[%s]\n }",
+                    String.join(",", balanceJsons),
+                    String.join(",", transactionsJsons),
+                    String.join(",", ProtoJson.toJson(singleTransaction)));
         });
 
         // Endpoint for transfer payment, called by client side after user approves payment.
@@ -220,7 +246,7 @@ public class Application {
     private static TokenClient initializeSDK() throws IOException {
         Path keys = Files.createDirectories(Paths.get("./keys"));
         return TokenClient.builder()
-                .connectTo(SANDBOX)
+                .connectTo(PRODUCTION)
                 // This KeyStore reads private keys from files.
                 // Here, it's set up to read the ./keys dir.
                 .withKeyStore(new UnsecuredFileSystemKeyStore(
@@ -293,7 +319,7 @@ public class Application {
         // See https://developer.token.io/sdk/#aliases for more information.
         String email = "asjava-" + generateNonce().toLowerCase() + "+noverify@example.com";
         Alias alias = Alias.newBuilder()
-                .setType(EMAIL)
+                .setType(DOMAIN)
                 .setValue(email)
                 .build();
         Member member = tokenClient.createMemberBlocking(alias);
