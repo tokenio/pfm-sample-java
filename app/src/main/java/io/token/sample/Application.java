@@ -3,6 +3,7 @@ package io.token.sample;
 import static com.google.common.base.Charsets.UTF_8;
 import static io.grpc.Status.Code.NOT_FOUND;
 import static io.token.TokenClient.TokenCluster.SANDBOX;
+import static io.token.proto.common.alias.AliasProtos.Alias.Type.DOMAIN;
 import static io.token.proto.common.alias.AliasProtos.Alias.Type.EMAIL;
 import static io.token.proto.common.security.SecurityProtos.Key.Level.STANDARD;
 import static io.token.proto.common.token.TokenProtos.TokenRequestPayload.AccessBody.ResourceType.ACCOUNTS;
@@ -293,7 +294,7 @@ public class Application {
         // See https://developer.token.io/sdk/#aliases for more information.
         String email = "asjava-" + generateNonce().toLowerCase() + "+noverify@example.com";
         Alias alias = Alias.newBuilder()
-                .setType(EMAIL)
+                .setType(DOMAIN)
                 .setValue(email)
                 .build();
         Member member = tokenClient.createMemberBlocking(alias);
