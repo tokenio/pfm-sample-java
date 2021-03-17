@@ -300,10 +300,7 @@ public class Application {
         Member member = tokenClient.createMemberBlocking(alias);
         // A member's profile has a display name and picture.
         // The Token UI shows this (and the alias) to the user when requesting access.
-        member.setProfile(Profile.newBuilder()
-                .setDisplayNameFirst("Demo")
-                .setDisplayNameLast("PFM")
-                .build());
+        member.setProfileNameBlocking("Demo PFM");
         try {
             byte[] pict = Resources.toByteArray(Resources.getResource("southside.png"));
             member.setProfilePictureBlocking("image/png", pict);
